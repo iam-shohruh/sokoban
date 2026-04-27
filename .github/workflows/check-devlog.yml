@@ -1,0 +1,18 @@
+name: Check devlog entry
+on: [pull_request]
+
+jobs:
+  check-devlog:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check devlog entry added
+        run: |
+          ADDED=$(git diff --name-only --diff-filter=A origin/${{ github.base_ref }}...HEAD)
+          if ! echo "$ADDED" | grep -qP '^devlog/.+\.md$'; then
+            echo "PR must include a new .md file in devlog/"
+            exit 1
+          fi
