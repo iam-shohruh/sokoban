@@ -14,7 +14,8 @@ Example usage:
 
 from sokoban.search.bfs import bfs_solver
 from sokoban.search.a_star import a_star_solver
-import time, argparse
+import time, argparse, json
+from sokoban.state import Level, State, Position
 
 
 SOLVERS = {
@@ -66,18 +67,52 @@ def evaluate(dataset: str, solver: str) -> dict:
 
     return _summarize(results)
 
-def load_levels(dataset: str) -> list:
+def load_levels(dataset: str) -> list[Level]:
     """
     Loads Sokoban levels from the specified dataset.
 
     Args:
         dataset (str): The path to the dataset containing Sokoban levels.
     Returns:
-        list: A list of Sokoban levels.
+        list[Level]: A list of Sokoban levels.
     """
-    # Placeholder for loading levels from the dataset
-    # This function should read the levels from the dataset and return them in a format suitable for the solvers
-    return []
+    with open(dataset, "r") as f:
+        dataset_json = json.load(f)
+    
+    levels = []
+    for level_data in dataset_json["levels"]:
+        level_dict = {"walls": [], "goals": [], "player": None, "boxes": []}
+
+        for j, row in enumerate(level_data["grid"]):
+            for i, cell in enumerate(row):
+                if cell == "#":
+                    level_dict["walls"].append(Position(i, j))
+                elif cell == "@":
+                    level_dict["player"] = Position(i, j)
+                elif cell == "+":
+                    level_dict["goals"].append(Position(i, j))
+                    level_dict["player"] = Position(i, j)
+                elif cell == "$":
+                    level_dict["boxes"].append(Position(i, j))
+                elif cell == "*":
+                    level_dict["goals"].append(Position(i, j))
+                    level_dict["boxes"].append(Position(i, j))
+                elif cell == ".":
+                    level_dict["goals"].append(Position(i, j))
+
+        level = Level(
+            game_id=level_data["game_id"],
+            width=level_data["width"],
+            height=level_data["height"],
+            walls=frozenset(level_dict["walls"]),
+            goals=frozenset(level_dict["goals"]),
+            state=State(
+                player=level_dict["player"],
+                boxes=frozenset(level_dict["boxes"])
+            )
+        )
+        levels.append(level)
+    return levels
 
 def _save(results: list, dataset: str, solver: str) -> None:
     """
