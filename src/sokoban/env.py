@@ -35,15 +35,13 @@ class SokobanEnv:
         if next_p in state_boxes:
             box_next_p = (next_p[0] + dy, next_p[1] + dx)
 
-#       if box went to a wall or another box, reset state      
+#           if box went to a wall or another box, reset state
+            if box_next_p in self.level.walls or box_next_p in state_boxes:
+                return self.current_state
 
-        if box_next_p in self.level.walls or box_next_p in state_boxes:
-            return self.current_state
-
-#       update new box state by removing old box       
-
-        state_boxes.remove(next_p)
-        state_boxes.add(box_next_p)
+#           update new box state by removing old box
+            state_boxes.remove(next_p)
+            state_boxes.add(box_next_p)
 
 #       update state
 
