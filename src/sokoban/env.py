@@ -2,15 +2,13 @@
 This file contains the Sokoban environment implementation
 """
 
-from collections import deque
-
-from sokoban.state import Level, Position, Push, State
+import sokoban.state
 
 class SokobanRules:
     def __init__(self):
         self.moves = {"UP": (-1,0), "DOWN": (1,0), "LEFT": (0,-1), "RIGHT": (0,1)}
 
-    def step(self, state: State, push: Push) -> State:
+    def step(self, state: sokoban.state.State, push: sokoban.state.Push) -> sokoban.state.State:
         """
         Applies the given push to the state and return the resulting state
         
@@ -25,16 +23,45 @@ class SokobanRules:
         box_pos, direction = push
         
         # assign the new position of the box and the player after the push
-        new_box_pos = Position(box_pos[0] + self.moves[direction][0], box_pos[1] + self.moves[direction][1])
+        new_box_pos = sokoban.state.Position(box_pos[0] + self.moves[direction][0], box_pos[1] + self.moves[direction][1])
         new_player_pos = box_pos
 
         # update the state by removing the old box position and adding the new box position
         boxes.remove(box_pos)
         boxes.add(new_box_pos)
 
-        return State(player=new_player_pos, boxes=frozenset(boxes))
+        return sokoban.state.State(player=new_player_pos, boxes=frozenset(boxes))
 
-    def get_valid_pushes(self, state: State, level: Level) -> list[Push]:
+    def is_deadlock(self, new_box_pos: sokoban.state.Position, level: sokoban.state.Level) -> bool:
+        """
+        Checks if moving a box to new_box_pos results in a corner deadlock state.
+        This is a foolproof heuristic that ignores freestanding pillars.
+        """
+        # If the box reaches a goal, it is not deadlocked.
+        if new_box_pos in level.goals:
+            return False
+
+        y, x = new_box_pos[0], new_box_pos[1]
+        
+        horz_blocked = False
+        vert_blocked = False
+
+        # Check all 4 directions using moves offsets.
+        for direction, (dy, dx) in self.moves.items():
+            if sokoban.state.Position(y + dy, x + dx) in level.walls:
+                if direction in ["UP", "DOWN"]:
+                    vert_blocked = True
+                elif direction in ["LEFT", "RIGHT"]:
+                    horz_blocked = True
+
+        # SAFE DEADLOCK CHECK: Corner or 3-side trap.
+        if horz_blocked and vert_blocked:
+            return True
+
+        return False
+
+
+    def get_valid_pushes(self, state: sokoban.state.State, level: sokoban.state.Level) -> list[sokoban.state.Push]:
         """
         Returns a list of valid pushes that can be applied to the given state.
 
@@ -45,7 +72,7 @@ class SokobanRules:
         Returns:
             list[Push]: A list of valid pushes that can be applied to the given state.
         """
-        valid_pushes: list[Push] = []
+        valid_pushes: list[sokoban.state.Push] = []
         player = state.player
         boxes = state.boxes
 
@@ -56,20 +83,20 @@ class SokobanRules:
             current_pos = queue.pop()
 
             for direction, (dy, dx) in self.moves.items():
-                next_pos = Position(current_pos[0]+dy, current_pos[1]+dx)
+                next_pos = sokoban.state.Position(current_pos[0]+dy, current_pos[1]+dx)
                 if next_pos in level.walls or next_pos in visited:
                     continue
                 elif next_pos in boxes:
-                    box_next_pos = Position(next_pos[0]+dy, next_pos[1]+dx)
+                    box_next_pos = sokoban.state.Position(next_pos[0]+dy, next_pos[1]+dx)
                     if box_next_pos not in level.walls and box_next_pos not in boxes:
-                        valid_pushes.append(Push(next_pos, direction))
+                        valid_pushes.append(sokoban.state.Push(next_pos, direction))
                 else:
                     visited.add(next_pos)
                     queue.append(next_pos)
         
         return valid_pushes
     
-    def is_goal_state(self, state: State, level: Level) -> bool:
+    def is_goal_state(self, state: sokoban.state.State, level: sokoban.state.Level) -> bool:
         """
         Checks if the given state is a goal state.
 
@@ -82,19 +109,25 @@ class SokobanRules:
         return all(box in level.goals for box in state.boxes)
 
 class SokobanEnv():
-    def __init__(self, level: Level):
+    def __init__(self, level: sokoban.state.Level):
         self.rules = SokobanRules()
         self.level = level
 
-    def reset(self) -> State:
+    def reset(self) -> sokoban.state.State:
         return self.level.init_state
     
-    def step(self, state: State, push: Push) -> State:
+    def step(self, state: sokoban.state.State, push: sokoban.state.Push) -> sokoban.state.State:
         return self.rules.step(state, push)
     
-    def get_valid_pushes(self, state: State) -> list[Push]:
+    def get_valid_pushes(self, state: sokoban.state.State) -> list[sokoban.state.Push]:
         return self.rules.get_valid_pushes(state, self.level)
     
-    def is_goal_state(self, state: State) -> bool:
+    def get_deadlock_state(self, state: sokoban.state.State) -> sokoban.state.State | None:
+        for box_pos in state.boxes:
+            if self.rules.is_deadlock(box_pos, self.level):
+                return state
+        
+        return None
+    def is_goal_state(self, state: sokoban.state.State) -> bool:
         return self.rules.is_goal_state(state, self.level)
     
