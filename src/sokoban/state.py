@@ -34,4 +34,4 @@ class Level:
     height: int
     walls: frozenset[Position]
     goals: frozenset[Position]
-    init_state: State
+    state: State
