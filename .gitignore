@@ -3,3 +3,10 @@
 .env
 .claude
 venv/
+
+# build artifacts
+*.egg-info/
+__pycache__/
+*.pyc
+dist/
+build/

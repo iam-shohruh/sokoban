@@ -51,9 +51,19 @@ BFS / A* / IDA*          RL agents
 - **`search/`** and **`RL/`** each contain solver algorithms. Every solver exposes a `solve(state) -> list[Action] | None` function.
 - **`eval.py`** is the orchestrator. Given a dataset name and solver name it loads levels via `state.py`, runs the solver on each level, prints a summary to the terminal, and writes per-level and aggregate results to `results/`.
 
+**Setup (first time only)**
+```bash
+source .venv/bin/activate
+pip install -e .
 ```
-python -m sokoban.eval --dataset microban --solver bfs
+
+**Run**
+```bash
+python src/sokoban/eval.py --dataset=microban --solver=bfs
 ```
+
+Available datasets: `microban`, `xsokoban`  
+Available solvers: `bfs`, `a_star`
 
 ## Level format
 
