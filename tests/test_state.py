@@ -24,9 +24,9 @@ def test_level_stores_state():
         height=5,
         walls=frozenset([(0, 0)]),
         goals=frozenset([(2, 2)]),
-        state=state,
+        init_state=state,
     )
-    assert level.state == state
+    assert level.init_state == state
     assert level.width == 5
 
 
@@ -39,6 +39,6 @@ def test_level_solved_when_boxes_on_goals():
         height=6,
         walls=frozenset(),
         goals=goals,
-        state=state,
+        init_state=state,
     )
-    assert level.state.boxes == level.goals
+    assert level.init_state.boxes == level.goals
