@@ -34,6 +34,35 @@ class SokobanRules:
 
         return State(player=new_player_pos, boxes=frozenset(boxes))
 
+    def is_deadlock(self, new_box_pos: Position, level: Level) -> bool:
+        """
+        Checks if moving a box to new_box_pos results in a corner deadlock state.
+        This is a foolproof heuristic that ignores freestanding pillars.
+        """
+        # If the box reaches a goal, it is not deadlocked.
+        if new_box_pos in level.goals:
+            return False
+
+        y, x = new_box_pos[0], new_box_pos[1]
+        
+        horz_blocked = False
+        vert_blocked = False
+
+        # Check all 4 directions using moves offsets.
+        for direction, (dy, dx) in self.moves.items():
+            if Position(y + dy, x + dx) in level.walls:
+                if direction in ["UP", "DOWN"]:
+                    vert_blocked = True
+                elif direction in ["LEFT", "RIGHT"]:
+                    horz_blocked = True
+
+        # SAFE DEADLOCK CHECK: Corner or 3-side trap.
+        if horz_blocked and vert_blocked:
+            return True
+
+        return False
+
+
     def get_valid_pushes(self, state: State, level: Level) -> list[Push]:
         """
         Returns a list of valid pushes that can be applied to the given state.
@@ -60,7 +89,7 @@ class SokobanRules:
                 if next_pos in level.walls or next_pos in visited:
                     continue
                 elif next_pos in boxes:
-                    box_next_pos = Position(next_pos[0]+dy, next_pos[1]+dx)
+                    box_next_pos =Position(next_pos[0]+dy, next_pos[1]+dx)
                     if box_next_pos not in level.walls and box_next_pos not in boxes:
                         valid_pushes.append(Push(next_pos, direction))
                 else:
@@ -89,12 +118,18 @@ class SokobanEnv():
     def reset(self) -> State:
         return self.level.init_state
     
-    def step(self, state: State, push: Push) -> State:
+    def step(self, state: State, push:Push) -> State:
         return self.rules.step(state, push)
     
     def get_valid_pushes(self, state: State) -> list[Push]:
         return self.rules.get_valid_pushes(state, self.level)
     
+    def get_deadlock_state(self, state: State) -> State | None:
+        for box_pos in state.boxes:
+            if self.rules.is_deadlock(box_pos, self.level):
+                return state
+        
+        return None
     def is_goal_state(self, state: State) -> bool:
         return self.rules.is_goal_state(state, self.level)
     

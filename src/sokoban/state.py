@@ -35,3 +35,4 @@ class Level:
     walls: frozenset[Position]
     goals: frozenset[Position]
     init_state: State
+    
