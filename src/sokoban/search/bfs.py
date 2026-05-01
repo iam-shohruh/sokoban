@@ -27,8 +27,9 @@ def bfs_solver(level: Level) -> dict:
             new_state = env.step(state, action)
 
             if new_state not in visited:
-                visited.add(new_state)
-                queue.append(new_state)
-                parent[new_state] = (state, action)
+                    if not env.get_deadlock_state(new_state):
+                        visited.add(new_state)
+                        queue.append(new_state)
+                        parent[new_state] = (state, action)
     print(f"Failed to solve {level.game_id}")
     return {"solved": False, "path": []}
