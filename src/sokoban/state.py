@@ -1,21 +1,26 @@
 """
 State representation for Sokoban game is split into two classes:
-- `State` - represents the state of the game - dynamic components
+- `State` - represents the dynamic components
     - player position - Tuple[Position]
     - box positions - ForzenSet[Position]
-- `Level` - represents all game components - static and dynamic
+- `Level` - represents the static components
     - game_id - int
     - width - int
     - height - int
     - walls - FrozenSet[Position]
     - goals - FrozenSet[Position]
-    - state - State
 """
 
 from dataclasses import dataclass
-from typing import Tuple
+from typing import NamedTuple
 
-Position = Tuple[int, int]
+class Position(NamedTuple):
+    row: int
+    col: int
+
+class Push(NamedTuple):
+    position: Position
+    direction: str
 
 @dataclass(frozen=True)
 class State:
@@ -29,4 +34,4 @@ class Level:
     height: int
     walls: frozenset[Position]
     goals: frozenset[Position]
-    state: State
+    init_state: State

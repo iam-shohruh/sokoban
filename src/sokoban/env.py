@@ -2,74 +2,99 @@
 This file contains the Sokoban environment implementation
 """
 
-from sokoban.state import Level, State
-#define level and state
-class SokobanEnv:
+from collections import deque
 
-    def __init__(self, level: Level):
-        self.level = level
-        self.current_state = level.state
+from sokoban.state import Level, Position, Push, State
 
-    def step(self, action: str):
+class SokobanRules:
+    def __init__(self):
+        self.moves = {"UP": (-1,0), "DOWN": (1,0), "LEFT": (0,-1), "RIGHT": (0,1)}
+
+    def step(self, state: State, push: Push) -> State:
+        """
+        Applies the given push to the state and return the resulting state
         
-        moves = {
-            "UP": (-1,0), "DOWN": (1,0), "LEFT": (0,-1), "RIGHT": (0,1)
-        }
-        dy,dx = moves[action]
+        Args:
+            state (State): The current state of the game.
+            push (Push): A tuple containing the position of the box to be pushed and the direction of the push.
+        Returns:
+            State: The resulting state after applying the push.
+        """
 
-
-#       update player position
+        boxes = set(state.boxes)
+        box_pos, direction = push
         
-        player_y, player_x = self.current_state.player
-        next_p = (player_y + dy, player_x + dx)
-       
-#       wall check  
- 
-        if next_p in self.level.walls:
-            return self.current_state
-        
-        state_boxes = set(self.current_state.boxes)
+        # assign the new position of the box and the player after the push
+        new_box_pos = Position(box_pos[0] + self.moves[direction][0], box_pos[1] + self.moves[direction][1])
+        new_player_pos = box_pos
 
-#       if player went to box, push box        
+        # update the state by removing the old box position and adding the new box position
+        boxes.remove(box_pos)
+        boxes.add(new_box_pos)
 
-        if next_p in state_boxes:
-            box_next_p = (next_p[0] + dy, next_p[1] + dx)
+        return State(player=new_player_pos, boxes=frozenset(boxes))
 
-#           if box went to a wall or another box, reset state
-            if box_next_p in self.level.walls or box_next_p in state_boxes:
-                return self.current_state
+    def get_valid_pushes(self, state: State, level: Level) -> list[Push]:
+        """
+        Returns a list of valid pushes that can be applied to the given state.
 
-#           update new box state by removing old box
-            state_boxes.remove(next_p)
-            state_boxes.add(box_next_p)
+        Args:
+            state (State): The current state of the game.
+            level (Level): The level of the game, containing the static components such as walls and goals.
 
-#       update state
+        Returns:
+            list[Push]: A list of valid pushes that can be applied to the given state.
+        """
+        valid_pushes: list[Push] = []
+        player = state.player
+        boxes = state.boxes
 
-        self.current_state = State(player = next_p, boxes = frozenset(state_boxes))
-        return self.current_state
-    
-    def get_valid_actions(self):
-        valid_moves = []
-        moves = {"UP": (-1, 0), "DOWN": (1, 0), "LEFT": (0, -1), "RIGHT": (0, 1)}
-        
-        player_y, player_x = self.current_state.player
-        state_boxes = self.current_state.boxes
+        visited = set({player})
+        queue = [player]
 
-        for action, (dy, dx) in moves.items():
-            next_p = (player_y + dy, player_x + dx)
+        while queue:
+            current_pos = queue.pop()
 
-#           if player step into a wall, the direction isnt valid 
-            if next_p in self.level.walls:
-                continue
-
-            if next_p in state_boxes:
-                box_next_p = (next_p[0] + dy, next_p[1] + dx)
-                
-#               if the box is pushed into a wall or another box, the direction isnt valid
-                if box_next_p in self.level.walls or box_next_p in state_boxes:
+            for direction, (dy, dx) in self.moves.items():
+                next_pos = Position(current_pos[0]+dy, current_pos[1]+dx)
+                if next_pos in level.walls or next_pos in visited:
                     continue
-            
-#           direction passed test, add to valid moves array
-            valid_moves.append(action)
-            
-        return valid_moves
+                elif next_pos in boxes:
+                    box_next_pos = Position(next_pos[0]+dy, next_pos[1]+dx)
+                    if box_next_pos not in level.walls and box_next_pos not in boxes:
+                        valid_pushes.append(Push(next_pos, direction))
+                else:
+                    visited.add(next_pos)
+                    queue.append(next_pos)
+        
+        return valid_pushes
+    
+    def is_goal_state(self, state: State, level: Level) -> bool:
+        """
+        Checks if the given state is a goal state.
+
+        Args:
+            state (State): The current state of the game.
+            level (Level): The level of the game, containing the static components such as walls and goals.
+        Returns:
+            bool: True if the given state is a goal state, False otherwise.
+        """
+        return all(box in level.goals for box in state.boxes)
+
+class SokobanEnv():
+    def __init__(self, level: Level):
+        self.rules = SokobanRules()
+        self.level = level
+
+    def reset(self) -> State:
+        return self.level.init_state
+    
+    def step(self, state: State, push: Push) -> State:
+        return self.rules.step(state, push)
+    
+    def get_valid_pushes(self, state: State) -> list[Push]:
+        return self.rules.get_valid_pushes(state, self.level)
+    
+    def is_goal_state(self, state: State) -> bool:
+        return self.rules.is_goal_state(state, self.level)
+    

@@ -24,8 +24,8 @@ SOLVERS = {
 }
 
 DATASETS = {
-    "microban": "sokoban/data/parsed/microban",
-    "xsokoban": "sokoban/data/parsed/xsokoban",
+    "microban": "data/parsed/microban/levels.json",
+    "xsokoban": "data/parsed/xsokoban/levels.json",
 }
 
 def evaluate(dataset: str, solver: str) -> dict:
@@ -63,9 +63,9 @@ def evaluate(dataset: str, solver: str) -> dict:
         result["time"] = end_time - start_time
         results.append(result)
 
-    _save(results, dataset, solver)
+    # _save(results, dataset, solver)
 
-    return _summarize(results)
+    # return _summarize(results)
 
 def load_levels(dataset: str) -> list[Level]:
     """
@@ -86,27 +86,27 @@ def load_levels(dataset: str) -> list[Level]:
         for j, row in enumerate(level_data["grid"]):
             for i, cell in enumerate(row):
                 if cell == "#":
-                    level_dict["walls"].append(Position(i, j))
+                    level_dict["walls"].append(Position(j, i))
                 elif cell == "@":
-                    level_dict["player"] = Position(i, j)
+                    level_dict["player"] = Position(j, i)
                 elif cell == "+":
-                    level_dict["goals"].append(Position(i, j))
-                    level_dict["player"] = Position(i, j)
+                    level_dict["goals"].append(Position(j, i))
+                    level_dict["player"] = Position(j, i)
                 elif cell == "$":
-                    level_dict["boxes"].append(Position(i, j))
+                    level_dict["boxes"].append(Position(j, i))
                 elif cell == "*":
-                    level_dict["goals"].append(Position(i, j))
-                    level_dict["boxes"].append(Position(i, j))
+                    level_dict["goals"].append(Position(j, i))
+                    level_dict["boxes"].append(Position(j, i))
                 elif cell == ".":
-                    level_dict["goals"].append(Position(i, j))
+                    level_dict["goals"].append(Position(j, i))
 
         level = Level(
-            game_id=level_data["game_id"],
+            game_id=level_data["id"],
             width=level_data["width"],
             height=level_data["height"],
             walls=frozenset(level_dict["walls"]),
             goals=frozenset(level_dict["goals"]),
-            state=State(
+            init_state=State(
                 player=level_dict["player"],
                 boxes=frozenset(level_dict["boxes"])
             )

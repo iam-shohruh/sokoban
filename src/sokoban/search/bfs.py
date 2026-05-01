@@ -1,25 +1,34 @@
 from collections import deque
-from sokoban.state import Level, State
+from sokoban.state import Level, Push, State
 from sokoban.env import SokobanEnv
 
 def bfs_solver(level: Level) -> dict:
     env = SokobanEnv(level)
-    start_state = level.state
-    queue = deque([(start_state, [])])
-    visited = {start_state}
+    start_state = level.init_state
+
+    queue = deque([start_state])
+    visited = set([start_state])
+    parent: dict[State, tuple[State, Push] | None] = {start_state: None}
+
     while queue:
-        state, path = queue.popleft()
-        
-        env.current_state = state
+        state = queue.popleft()
 
-        if state.boxes == level.goals:
-            return {"solved": True, "path": path, "moves": len(path)}
+        if env.is_goal_state(state):
+            actions = []
+            cur = state
+            while parent[cur] is not None:
+                prev, action = parent[cur]
+                actions.append(action)
+                cur = prev
+            print(f"Solved {level.game_id} in {len(actions)} moves")
+            return {"solved": True, "path": actions[::-1]}
 
-        for action in env.get_valid_actions():
-            new_state = env.step(action)
-            
+        for action in env.get_valid_pushes(state):
+            new_state = env.step(state, action)
+
             if new_state not in visited:
                 visited.add(new_state)
-                queue.append((new_state, path + [action]))
-                
-    return {"solved": False, "path": [], "moves": 0}
+                queue.append(new_state)
+                parent[new_state] = (state, action)
+    print(f"Failed to solve {level.game_id}")
+    return {"solved": False, "path": []}
