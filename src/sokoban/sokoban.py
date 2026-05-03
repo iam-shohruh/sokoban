@@ -1,6 +1,9 @@
 import pygame
 import sys
 import copy
+import os
+
+ASSETS_DIR = os.path.join(os.path.dirname(__file__), "assets")
 
 pygame.init()
 TILE_SIZE = 64
@@ -29,12 +32,12 @@ screen = pygame.display.set_mode((GRID_WIDTH, GRID_HEIGHT))
 pygame.display.set_caption("Sokoban Project - UI Flow")
 
 # --- 2. Load Images ---
-floor_img = pygame.transform.scale(pygame.image.load("assests/ground_04.png").convert_alpha(), (TILE_SIZE, TILE_SIZE))
-wall_img = pygame.transform.scale(pygame.image.load("assests/block_06.png").convert_alpha(), (TILE_SIZE, TILE_SIZE))
-player_img = pygame.transform.scale(pygame.image.load("assests/player_03.png").convert_alpha(), (TILE_SIZE, TILE_SIZE))
-box_img = pygame.transform.scale(pygame.image.load("assests/crate_07.png").convert_alpha(), (TILE_SIZE, TILE_SIZE))
-goal_img = pygame.transform.scale(pygame.image.load("assests/environment_09.png").convert_alpha(), (TILE_SIZE, TILE_SIZE))
-box_on_goal_img = pygame.transform.scale(pygame.image.load("assests/crate_27.png").convert_alpha(), (TILE_SIZE, TILE_SIZE))
+floor_img = pygame.transform.scale(pygame.image.load(os.path.join(ASSETS_DIR, "ground_04.png")).convert_alpha(), (TILE_SIZE, TILE_SIZE))
+wall_img = pygame.transform.scale(pygame.image.load(os.path.join(ASSETS_DIR, "block_06.png")).convert_alpha(), (TILE_SIZE, TILE_SIZE))
+player_img = pygame.transform.scale(pygame.image.load(os.path.join(ASSETS_DIR, "player_03.png")).convert_alpha(), (TILE_SIZE, TILE_SIZE))
+box_img = pygame.transform.scale(pygame.image.load(os.path.join(ASSETS_DIR, "crate_07.png")).convert_alpha(), (TILE_SIZE, TILE_SIZE))
+goal_img = pygame.transform.scale(pygame.image.load(os.path.join(ASSETS_DIR, "environment_09.png")).convert_alpha(), (TILE_SIZE, TILE_SIZE))
+box_on_goal_img = pygame.transform.scale(pygame.image.load(os.path.join(ASSETS_DIR, "crate_27.png")).convert_alpha(), (TILE_SIZE, TILE_SIZE))
 
 # --- 3. Setup Fonts and Buttons ---
 font_title = pygame.font.SysFont(None, 64)
