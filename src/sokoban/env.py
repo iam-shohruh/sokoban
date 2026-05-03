@@ -124,12 +124,12 @@ class SokobanEnv():
     def get_valid_pushes(self, state: State) -> list[Push]:
         return self.rules.get_valid_pushes(state, self.level)
     
-    def get_deadlock_state(self, state: State) -> State | None:
+    def is_deadlock(self, state: State) -> bool:
         for box_pos in state.boxes:
             if self.rules.is_deadlock(box_pos, self.level):
-                return state
-        
-        return None
+                return True
+        return False
+    
     def is_goal_state(self, state: State) -> bool:
         return self.rules.is_goal_state(state, self.level)
     
