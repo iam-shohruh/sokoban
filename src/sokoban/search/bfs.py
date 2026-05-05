@@ -20,16 +20,13 @@ def bfs_solver(level: Level) -> dict:
                 prev, action = parent[cur]
                 actions.append(action)
                 cur = prev
-            print(f"Solved {level.game_id} in {len(actions)} moves")
             return {"solved": True, "path": actions[::-1]}
 
         for action in env.get_valid_pushes(state):
             new_state = env.step(state, action)
 
-            if new_state not in visited:
-                    if not env.get_deadlock_state(new_state):
-                        visited.add(new_state)
-                        queue.append(new_state)
-                        parent[new_state] = (state, action)
-    print(f"Failed to solve {level.game_id}")
+            if new_state not in visited and not env.is_deadlock(new_state):
+                visited.add(new_state)
+                queue.append(new_state)
+                parent[new_state] = (state, action)
     return {"solved": False, "path": []}

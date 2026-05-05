@@ -60,6 +60,7 @@ def evaluate(dataset: str, solver: str) -> dict:
 
         end_time = time.time()
 
+        print(f"Level {level.game_id} - Solved: {result['solved']}, Time: {end_time - start_time:.2f}s, Path Length: {len(result['path']) if result['solved'] else 'N/A'}")
         result["time"] = end_time - start_time
         results.append(result)
 

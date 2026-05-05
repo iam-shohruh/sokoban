@@ -114,6 +114,39 @@ class SokobanEnv():
     def __init__(self, level: Level):
         self.rules = SokobanRules()
         self.level = level
+        self.point_to_goal: dict[Position, dict[Position, int]] = self.precompute_point_to_goal()
+
+    def precompute_point_to_goal(self) -> dict[Position, dict[Position, int]]:
+        """
+        Precomputes BFS distances from every non-wall cell to every goal.
+        Runs one BFS per goal (outward from goal), which is O(goals × cells)
+        instead of the naive O(cells × goals × cells).
+
+        Returns:
+            dict[Position, dict[Position, int]]: Maps each position to a dict of
+            {goal: distance}. Unreachable goals are omitted.
+        """
+        point_to_goal: dict[Position, dict[Position, int]] = {}
+        for row in range(self.level.height):
+            for col in range(self.level.width):
+                pos = Position(row, col)
+                if pos not in self.level.walls:
+                    point_to_goal[pos] = {}
+
+        for goal in self.level.goals:
+            queue = deque([(goal, 0)])
+            visited = {goal}
+            while queue:
+                pos, dist = queue.popleft()
+                if pos in point_to_goal:
+                    point_to_goal[pos][goal] = dist
+                for dy, dx in self.rules.moves.values():
+                    nxt = Position(pos[0] + dy, pos[1] + dx)
+                    if nxt not in self.level.walls and nxt not in visited:
+                        visited.add(nxt)
+                        queue.append((nxt, dist + 1))
+
+        return point_to_goal
 
     def reset(self) -> State:
         return self.level.init_state

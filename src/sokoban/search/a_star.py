@@ -1,15 +1,16 @@
 from sokoban.state import Level, Position, Push, State
 from sokoban.env import SokobanEnv
 import heapq
+from scipy.optimize import linear_sum_assignment
 
-def manhattan_heuristic(state: State, level: Level) -> int:
+def manhattan_heuristic(state: State, env: SokobanEnv) -> int:
     """
     Heuristic function for A* search algorithm. It estimates the cost to reach the goal state from the given state.
     This heuristic is implemented as the sum of the Manhattan distances from each box to the nearest goal.
 
     Args:
         state (State): The current state of the game.
-        level (Level): The level of the game, containing the static components such as walls and goals.
+        env (SokobanEnv): The Sokoban environment, containing the level and other game components.
 
     Returns:
         int: The estimated cost to reach the goal state from the given state.
@@ -19,7 +20,7 @@ def manhattan_heuristic(state: State, level: Level) -> int:
     for box in state.boxes:
         chosen_goal: Position = None
         min_distance = float('inf')
-        for goal in level.goals:
+        for goal in env.level.goals:
             if goal not in taken:
                 distance = abs(box.row - goal.row) + abs(box.col - goal.col)
                 if distance < min_distance:
@@ -30,19 +31,36 @@ def manhattan_heuristic(state: State, level: Level) -> int:
         taken.add(chosen_goal)
     return total_distance
 
-def hungarian_heuristic(state: State, level: Level) -> int:
-    pass
+def hungarian_heuristic(state: State, env: SokobanEnv) -> int:
+    """
+    This heuristic uses the Hungarian algorithm to find the optimal assignment of boxes to goals, minimizing the total
+    Manhattan distance to reach goals. The improvement from the basic Manhattan heuristic is that it considers the best 
+    possible matching of boxes to goals, rather than just summing individual distances.
 
-def pattern_database_heuristic(state: State, level: Level) -> int:
-    """
-    Placeholder for a more advanced heuristic that uses a pattern database.
-    Pattern databases store precomputed costs for specific configurations of boxes and goals, allowing for more informed estimates.
-    """
-    pass
+    Args:
+        state (State): The current state of the game.
+        env (SokobanEnv): The Sokoban environment, containing the level and other game components.
 
-def hybrid_heuristic(state: State, level: Level) -> int:
+    Returns:
+        int: The estimated cost to reach the goal state from the given state.
     """
-    Hybrid heuristic combines both pattern and hungarian heuristics, taking the maximum of the two to provide a more accurate estimate.
+
+    # First, cost matrix should be constructed where cost[i][j] is the distance from box i to goal j
+    cost_matrix = []
+    for box in state.boxes:
+        row = []
+        for goal in env.level.goals:
+            row.append(env.point_to_goal[box][goal])
+        cost_matrix.append(row)
+
+    # Then, the Hungarian algorithm is applied to find the optimal assignment
+    row_ind, col_ind = linear_sum_assignment(cost_matrix)
+    total_cost = sum(cost_matrix[i][j] for i, j in zip(row_ind, col_ind))
+    return total_cost
+
+def custom_hungarian_heuristic(state: State, env: SokobanEnv) -> int:
+    """
+    Here will go our implementation of Hungarian heuristic.
     """
     pass
 
@@ -52,6 +70,7 @@ def a_star_solver(level: Level, debug: bool = False, steps_out: list | None = No
 
     Args:
         level (Level): The Sokoban level to solve.
+        heuristic (str): The heuristic function to use. Default is "hungarian". Options are "manhattan", "hungarian", and "custom_hungarian".
         debug (bool): When True, collects steps internally and returns them
                       under result["steps"].
         steps_out (list | None): External list to append steps into as the
@@ -74,7 +93,7 @@ def a_star_solver(level: Level, debug: bool = False, steps_out: list | None = No
     visited = set([start_state])
     parent: dict[State, tuple[State, Push] | None] = {start_state: None}
     g_costs: dict[State, int] = {start_state: 0}
-    h_costs: dict[State, int] = {start_state: manhattan_heuristic(start_state, level)}
+    h_costs: dict[State, int] = {start_state: hungarian_heuristic(start_state, env)}
 
     if collecting:
         h0 = h_costs[start_state]
@@ -94,7 +113,6 @@ def a_star_solver(level: Level, debug: bool = False, steps_out: list | None = No
             if collecting:
                 result["steps"] = steps
             
-            print(f"Solved level {level.game_id} in {len(pushes)} pushes")
             return result
 
         for push in env.get_valid_pushes(state):
@@ -102,7 +120,7 @@ def a_star_solver(level: Level, debug: bool = False, steps_out: list | None = No
             if env.is_deadlock(new_state):
                 continue
             g_cost = g_costs[state] + 1
-            h_cost = manhattan_heuristic(new_state, level)
+            h_cost = hungarian_heuristic(new_state, env)
             f_cost = g_cost + h_cost
             if new_state not in visited or g_cost < g_costs.get(new_state, float('inf')):
                 visited.add(new_state)
