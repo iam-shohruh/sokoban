@@ -82,7 +82,7 @@ def a_star_solver(level: Level, debug: bool = False, steps_out: list | None = No
         dict: Results with "solved", "path", and optionally "steps".
     """
     env = SokobanEnv(level)
-    start_state = level.init_state
+    start_state = env.normalize_player(level.init_state)
 
     # Decide where to collect steps
     collecting = debug or steps_out is not None
@@ -116,7 +116,7 @@ def a_star_solver(level: Level, debug: bool = False, steps_out: list | None = No
             return result
 
         for push in env.get_valid_pushes(state):
-            new_state = env.step(state, push)
+            new_state = env.normalize_player(env.step(state, push))
             if env.is_deadlock(new_state):
                 continue
             g_cost = g_costs[state] + 1
