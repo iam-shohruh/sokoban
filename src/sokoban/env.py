@@ -6,9 +6,46 @@ from collections import deque
 
 from sokoban.state import Level, Position, Push, State
 
-class SokobanRules:
-    def __init__(self):
+class SokobanEnv:
+    def __init__(self, level: Level):
+        self.level = level
+        self.point_to_goal: dict[Position, dict[Position, int]] = self.precompute_point_to_goal()
         self.moves = {"UP": (-1,0), "DOWN": (1,0), "LEFT": (0,-1), "RIGHT": (0,1)}
+
+    def precompute_point_to_goal(self) -> dict[Position, dict[Position, int]]:
+        """
+        Precomputes BFS distances from every non-wall cell to every goal.
+        Runs one BFS per goal (outward from goal), which is O(goals × cells)
+        instead of the naive O(cells × goals × cells).
+
+        Returns:
+            dict[Position, dict[Position, int]]: Maps each position to a dict of
+            {goal: distance}. Unreachable goals are omitted.
+        """
+        point_to_goal: dict[Position, dict[Position, int]] = {}
+        for row in range(self.level.height):
+            for col in range(self.level.width):
+                pos = Position(row, col)
+                if pos not in self.level.walls:
+                    point_to_goal[pos] = {}
+
+        for goal in self.level.goals:
+            queue = deque([(goal, 0)])
+            visited = {goal}
+            while queue:
+                pos, dist = queue.popleft()
+                if pos in point_to_goal:
+                    point_to_goal[pos][goal] = dist
+                for dy, dx in self.rules.moves.values():
+                    nxt = Position(pos[0] + dy, pos[1] + dx)
+                    if nxt not in self.level.walls and nxt not in visited:
+                        visited.add(nxt)
+                        queue.append((nxt, dist + 1))
+
+        return point_to_goal
+    
+    def reset(self) -> State:
+        return self.level.init_state
 
     def step(self, state: State, push: Push) -> State:
         """
@@ -34,7 +71,7 @@ class SokobanRules:
 
         return State(player=new_player_pos, boxes=frozenset(boxes))
 
-    def is_deadlock(self, new_box_pos: Position, level: Level) -> bool:
+    def is_pos_deadlock(self, new_box_pos: Position, level: Level) -> bool:
         """
         Checks if moving a box to new_box_pos results in a corner deadlock state.
         This is a foolproof heuristic that ignores freestanding pillars.
@@ -110,59 +147,12 @@ class SokobanRules:
         """
         return all(box in level.goals for box in state.boxes)
 
-class SokobanEnv():
-    def __init__(self, level: Level):
-        self.rules = SokobanRules()
-        self.level = level
-        self.point_to_goal: dict[Position, dict[Position, int]] = self.precompute_point_to_goal()
 
-    def precompute_point_to_goal(self) -> dict[Position, dict[Position, int]]:
-        """
-        Precomputes BFS distances from every non-wall cell to every goal.
-        Runs one BFS per goal (outward from goal), which is O(goals × cells)
-        instead of the naive O(cells × goals × cells).
 
-        Returns:
-            dict[Position, dict[Position, int]]: Maps each position to a dict of
-            {goal: distance}. Unreachable goals are omitted.
-        """
-        point_to_goal: dict[Position, dict[Position, int]] = {}
-        for row in range(self.level.height):
-            for col in range(self.level.width):
-                pos = Position(row, col)
-                if pos not in self.level.walls:
-                    point_to_goal[pos] = {}
 
-        for goal in self.level.goals:
-            queue = deque([(goal, 0)])
-            visited = {goal}
-            while queue:
-                pos, dist = queue.popleft()
-                if pos in point_to_goal:
-                    point_to_goal[pos][goal] = dist
-                for dy, dx in self.rules.moves.values():
-                    nxt = Position(pos[0] + dy, pos[1] + dx)
-                    if nxt not in self.level.walls and nxt not in visited:
-                        visited.add(nxt)
-                        queue.append((nxt, dist + 1))
-
-        return point_to_goal
-
-    def reset(self) -> State:
-        return self.level.init_state
-    
-    def step(self, state: State, push:Push) -> State:
-        return self.rules.step(state, push)
-    
-    def get_valid_pushes(self, state: State) -> list[Push]:
-        return self.rules.get_valid_pushes(state, self.level)
     
     def is_deadlock(self, state: State) -> bool:
         for box_pos in state.boxes:
-            if self.rules.is_deadlock(box_pos, self.level):
+            if self.is_pos_deadlock(box_pos, self.level):
                 return True
         return False
-    
-    def is_goal_state(self, state: State) -> bool:
-        return self.rules.is_goal_state(state, self.level)
-    
