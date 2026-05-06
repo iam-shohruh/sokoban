@@ -90,7 +90,6 @@ def a_star_solver(level: Level, debug: bool = False, steps_out: list | None = No
 
     counter = 0
     queue = [(0, counter, start_state)]
-    visited = set([start_state])
     parent: dict[State, tuple[State, Push] | None] = {start_state: None}
     g_costs: dict[State, int] = {start_state: 0}
     h_costs: dict[State, int] = {start_state: hungarian_heuristic(start_state, env)}
@@ -99,8 +98,13 @@ def a_star_solver(level: Level, debug: bool = False, steps_out: list | None = No
         h0 = h_costs[start_state]
         steps.append({"state": start_state, "push": None, "g": 0, "h": h0, "f": h0})
 
+    closed = set()
     while queue:
         _, _, state = heapq.heappop(queue)
+        if state in closed:
+            continue
+        closed.add(state)
+
         if env.is_goal_state(state):
             pushes = []
             current = state
@@ -122,8 +126,7 @@ def a_star_solver(level: Level, debug: bool = False, steps_out: list | None = No
             g_cost = g_costs[state] + 1
             h_cost = hungarian_heuristic(new_state, env)
             f_cost = g_cost + h_cost
-            if new_state not in visited or g_cost < g_costs.get(new_state, float('inf')):
-                visited.add(new_state)
+            if g_cost < g_costs.get(new_state, float('inf')):
                 parent[new_state] = (state, push)
                 g_costs[new_state] = g_cost
                 h_costs[new_state] = h_cost
