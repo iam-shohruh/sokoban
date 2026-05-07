@@ -10,8 +10,8 @@ class SokobanEnv:
     def __init__(self, level: Level):
         self.level = level
         self.init_state = level.init_state
-        self.point_to_goal: dict[Position, dict[Position, int]] = self.precompute_point_to_goal()
         self.moves = {"UP": (-1,0), "DOWN": (1,0), "LEFT": (0,-1), "RIGHT": (0,1)}
+        self.point_to_goal: dict[Position, dict[Position, int]] = self.precompute_point_to_goal()
 
     def precompute_point_to_goal(self) -> dict[Position, dict[Position, int]]:
         """
@@ -37,11 +37,12 @@ class SokobanEnv:
                 pos, dist = queue.popleft()
                 if pos in point_to_goal:
                     point_to_goal[pos][goal] = dist
-                for dy, dx in self.rules.moves.values():
-                    nxt = Position(pos[0] + dy, pos[1] + dx)
-                    if nxt not in self.level.walls and nxt not in visited:
-                        visited.add(nxt)
-                        queue.append((nxt, dist + 1))
+                for dy, dx in self.moves.values():
+                    prev_box = Position(pos[0] - dy, pos[1] - dx)
+                    player_pos = Position(pos[0] - 2*dy, pos[1] - 2*dx)
+                    if (prev_box not in self.level.walls and player_pos not in self.level.walls and prev_box not in visited):
+                        visited.add(prev_box)
+                        queue.append((prev_box, dist + 1))
 
         return point_to_goal
     
@@ -74,39 +75,65 @@ class SokobanEnv:
 
 
     def is_deadlock(self, state: State) -> bool:
-        for box_pos in state.boxes:
-            if self.is_pos_deadlock(box_pos):
+        """
+        Checks if the given state is a deadlock state.
+
+        Args:
+            state (State): The current state of the game.
+        Returns:
+            bool: True if the given state is a deadlock state, False otherwise.
+        """
+        return (
+            self.has_corner_deadlock(state)
+            or self.has_dead_square_deadlock(state)
+            or self.has_2x2_deadlock(state)
+            # or self.has_freeze_deadlock(state)
+            # or self.has_matching_deadlock(state)
+        )
+    
+    def has_corner_deadlock(self, state: State) -> bool:
+        """
+        Checks for deadlocks where a box is in a corner formed by two walls and is not on a goal.
+        """
+        for box in state.boxes:
+            if box not in self.level.goals:
+                for dy1, dx1 in self.moves.values():
+                    for dy2, dx2 in self.moves.values():
+                        if (dy1, dx1) != (dy2, dx2) and (dy1, dx1) != (-dy2, -dx2):
+                            adj1 = Position(box[0] + dy1, box[1] + dx1)
+                            adj2 = Position(box[0] + dy2, box[1] + dx2)
+                            if adj1 in self.level.walls and adj2 in self.level.walls:
+                                return True
+        return False
+    
+    def has_dead_square_deadlock(self, state: State) -> bool:
+        """
+        Checks for box positions that can't reach any goals.
+        """
+        for box in state.boxes:
+            if box not in self.level.goals and not self.point_to_goal.get(box):
                 return True
         return False
-
-    def is_pos_deadlock(self, new_box_pos: Position) -> bool:
+    
+    def has_2x2_deadlock(self, state: State) -> bool:
         """
-        Checks if moving a box to new_box_pos results in a corner deadlock state.
-        This is a foolproof heuristic that ignores freestanding pillars.
+        Checks for 2x2 blocks of boxes/walls that can't be moved further.
         """
-        # If the box reaches a goal, it is not deadlocked.
-        if new_box_pos in self.level.goals:
-            return False
-
-        y, x = new_box_pos[0], new_box_pos[1]
-        
-        horz_blocked = False
-        vert_blocked = False
-
-        # Check all 4 directions using moves offsets.
-        for direction, (dy, dx) in self.moves.items():
-            if Position(y + dy, x + dx) in self.level.walls:
-                if direction in ["UP", "DOWN"]:
-                    vert_blocked = True
-                elif direction in ["LEFT", "RIGHT"]:
-                    horz_blocked = True
-
-        # SAFE DEADLOCK CHECK: Corner or 3-side trap.
-        if horz_blocked and vert_blocked:
-            return True
-
+        for box in state.boxes:
+            if box not in self.level.goals:
+                for dy1, dx1 in self.moves.values():
+                    for dy2, dx2 in self.moves.values():
+                        if (dy1, dx1) != (dy2, dx2) and (dy1, dx1) != (-dy2, -dx2):
+                            adj1 = Position(box[0] + dy1, box[1] + dx1)
+                            adj2 = Position(box[0] + dy2, box[1] + dx2)
+                            diag = Position(box[0] + dy1 + dy2, box[1] + dx1 + dx2)
+                            if ((adj1 in self.level.walls or adj1 in state.boxes) and
+                                (adj2 in self.level.walls or adj2 in state.boxes) and
+                                (diag in self.level.walls or diag in state.boxes)):
+                                return True
         return False
-
+    
+  
 
     def get_valid_pushes(self, state: State) -> list[Push]:
         """
@@ -173,5 +200,5 @@ class SokobanEnv:
                 if nxt not in self.level.walls and nxt not in state.boxes and nxt not in reachable:
                     reachable.add(nxt)
                     stack.append(nxt)
-        return State(player=list(reachable)[0], boxes=state.boxes)
+        return State(player=min(reachable), boxes=state.boxes)
     

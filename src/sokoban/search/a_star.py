@@ -46,11 +46,12 @@ def hungarian_heuristic(state: State, env: SokobanEnv) -> int:
     """
 
     # First, cost matrix should be constructed where cost[i][j] is the distance from box i to goal j
+    unreachable = env.level.width * env.level.height
     cost_matrix = []
     for box in state.boxes:
         row = []
         for goal in env.level.goals:
-            row.append(env.point_to_goal[box][goal])
+            row.append(env.point_to_goal.get(box, {}).get(goal, unreachable))
         cost_matrix.append(row)
 
     # Then, the Hungarian algorithm is applied to find the optimal assignment
