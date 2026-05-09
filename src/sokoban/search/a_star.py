@@ -63,45 +63,29 @@ def custom_hungarian_heuristic(state: State, env: SokobanEnv) -> int:
     """
     Here will go our implementation of Hungarian heuristic.
     """
-    pass
+    raise NotImplementedError("custom_hungarian_heuristic is not implemented")
 
-def a_star_solver(level: Level, debug: bool = False, steps_out: list | None = None) -> dict:
+def a_star_solver(level: Level) -> dict:
     """
     Solves a Sokoban level using the A* search algorithm.
 
     Args:
         level (Level): The Sokoban level to solve.
-        heuristic (str): The heuristic function to use. Default is "hungarian". Options are "manhattan", "hungarian", and "custom_hungarian".
-        debug (bool): When True, collects steps internally and returns them
-                      under result["steps"].
-        steps_out (list | None): External list to append steps into as the
-                                 search runs (used for live pygame replay).
-                                 If provided, steps are written here instead
-                                 of (or in addition to) the return value.
-
     Returns:
-        dict: Results with "solved", "path", and optionally "steps".
+        dict: Results with "solved", "path".
     """
-    env = SokobanEnv(level)
+    env = SokobanEnv(level, debug_deadlocks=True)
     start_state = env.normalize_player(level.init_state)
 
-    # Decide where to collect steps
-    collecting = debug or steps_out is not None
-    steps: list[dict] | None = steps_out if steps_out is not None else ([] if debug else None)
-
     counter = 0
-    queue = [(0, counter, start_state)]
-    parent: dict[State, tuple[State, Push] | None] = {start_state: None}
+    start_h = hungarian_heuristic(start_state, env)
+    queue = [(start_h, 0, start_h, counter, start_state)]
+    parent: dict[State, tuple[State, tuple[Push, ...]] | None] = {start_state: None}
     g_costs: dict[State, int] = {start_state: 0}
-    h_costs: dict[State, int] = {start_state: hungarian_heuristic(start_state, env)}
-
-    if collecting:
-        h0 = h_costs[start_state]
-        steps.append({"state": start_state, "push": None, "g": 0, "h": h0, "f": h0})
 
     closed = set()
     while queue:
-        _, _, state = heapq.heappop(queue)
+        _, _, _, _, state = heapq.heappop(queue)
         if state in closed:
             continue
         closed.add(state)
@@ -110,35 +94,27 @@ def a_star_solver(level: Level, debug: bool = False, steps_out: list | None = No
             pushes = []
             current = state
             while parent[current] is not None:
-                prev_state, push = parent[current]
-                pushes.append(push)
+                prev_state, push_seq = parent[current]
+                pushes.extend(reversed(push_seq))
                 current = prev_state
             pushes.reverse()
             result = {"solved": True, "path": pushes}
-            if collecting:
-                result["steps"] = steps
-            
+            result["explored_states"] = len(closed)
+            result["deadlock_stats"] = dict(env.deadlock_stats)
             return result
 
-        for push in env.get_valid_pushes(state):
-            new_state = env.normalize_player(env.step(state, push))
+        for new_state, push_seq in env.get_successors(state):
             if env.is_deadlock(new_state):
                 continue
-            g_cost = g_costs[state] + 1
+            step_cost = len(push_seq)
+            g_cost = g_costs[state] + step_cost
             h_cost = hungarian_heuristic(new_state, env)
             f_cost = g_cost + h_cost
             if g_cost < g_costs.get(new_state, float('inf')):
-                parent[new_state] = (state, push)
+                parent[new_state] = (state, push_seq)
                 g_costs[new_state] = g_cost
-                h_costs[new_state] = h_cost
                 counter += 1
-                heapq.heappush(queue, (f_cost, counter, new_state))
-                if collecting:
-                    steps.append({"state": new_state, "push": push, "g": g_cost, "h": h_cost, "f": f_cost})
+                heapq.heappush(queue, (f_cost, -g_cost, h_cost, counter, new_state))
 
-    result = {"solved": False, "path": []}
-    if collecting:
-        result["steps"] = steps
+    result = {"solved": False, "path": [], "explored_states": len(closed), "deadlock_stats": dict(env.deadlock_stats)}
     return result
-
-
