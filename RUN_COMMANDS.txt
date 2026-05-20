@@ -1,0 +1,15 @@
+PYTHON VERSION
+--------------
+From this folder:
+python -m sokoban.sokoban_player
+
+If imports fail, run:
+python -m pip install -e .
+python -m sokoban.sokoban_player
+
+C VERSION
+---------
+From this folder:
+cd c_version
+gcc -O2 -std=c11 *.c search/*.c -o sokoban.exe -lm
+./sokoban.exe
