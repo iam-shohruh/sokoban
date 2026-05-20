@@ -1,194 +1,135 @@
 """
-Sokoban environment with movement, successor generation and conservative deadlocks.
+This file contains the Sokoban environment implementation
 """
 
 from collections import deque
 
 from sokoban.state import Level, Position, Push, State
 
-
-class SokobanEnv:
-    def __init__(self, level: Level, debug_deadlocks: bool = False):
-        self.level = level
-        self.moves: dict[str, tuple[int, int]] = {
-            "UP": (-1, 0),
-            "DOWN": (1, 0),
-            "LEFT": (0, -1),
-            "RIGHT": (0, 1),
-        }
-        self.debug_deadlocks = debug_deadlocks
-        self.deadlock_stats: dict[str, int] = {
-            "corner": 0,
-            "dead_square": 0,
-            "2x2": 0,
-        }
-
-        self.point_to_goal = self.precompute_point_to_goal()
-
-    # ------------------------------------------------------------------
-    # Basic helpers
-    # ------------------------------------------------------------------
-
-    def _record_deadlock(self, name: str) -> None:
-        if self.debug_deadlocks:
-            self.deadlock_stats[name] += 1
-
-    def _is_floor(self, pos: Position) -> bool:
-        return (
-            0 <= pos.row < self.level.height
-            and 0 <= pos.col < self.level.width
-            and pos not in self.level.walls
-        )
-
-    def _neighbors(self, pos: Position) -> tuple[Position, Position, Position, Position]:
-        return (
-            Position(pos.row - 1, pos.col),
-            Position(pos.row + 1, pos.col),
-            Position(pos.row, pos.col - 1),
-            Position(pos.row, pos.col + 1),
-        )
-
-    def is_goal_state(self, state: State) -> bool:
-        return all(box in self.level.goals for box in state.boxes)
-
-    # ------------------------------------------------------------------
-    # Reachability / movement
-    # ------------------------------------------------------------------
-
-    def _reachable_floor(self, state: State) -> set[Position]:
-        reachable = {state.player}
-        queue = deque([state.player])
-        while queue:
-            pos = queue.popleft()
-            for nxt in self._neighbors(pos):
-                if nxt in reachable or nxt in self.level.walls or nxt in state.boxes:
-                    continue
-                reachable.add(nxt)
-                queue.append(nxt)
-        return reachable
-
-    def normalize_player(self, state: State) -> State:
-        reachable = self._reachable_floor(state)
-        return State(player=min(reachable), boxes=state.boxes)
+class SokobanRules:
+    def __init__(self):
+        self.moves = {"UP": (-1,0), "DOWN": (1,0), "LEFT": (0,-1), "RIGHT": (0,1)}
 
     def step(self, state: State, push: Push) -> State:
-        box_pos, direction = push
-        dy, dx = self.moves[direction]
-        new_box_pos = Position(box_pos.row + dy, box_pos.col + dx)
+        """
+        Applies the given push to the state and return the resulting state
+        
+        Args:
+            state (State): The current state of the game.
+            push (Push): A tuple containing the position of the box to be pushed and the direction of the push.
+        Returns:
+            State: The resulting state after applying the push.
+        """
+
         boxes = set(state.boxes)
+        box_pos, direction = push
+        
+        # assign the new position of the box and the player after the push
+        new_box_pos = Position(box_pos[0] + self.moves[direction][0], box_pos[1] + self.moves[direction][1])
+        new_player_pos = box_pos
+
+        # update the state by removing the old box position and adding the new box position
         boxes.remove(box_pos)
         boxes.add(new_box_pos)
-        # after a push, player stands where the pushed box used to be
-        return State(player=box_pos, boxes=frozenset(boxes))
 
-    def _valid_pushes_from_reachable(self, reachable: set[Position], boxes: frozenset[Position]) -> list[Push]:
-        pushes: list[Push] = []
-        for p in reachable:
-            for direction, (dy, dx) in self.moves.items():
-                box_pos = Position(p.row + dy, p.col + dx)
-                if box_pos not in boxes:
-                    continue
-                dst = Position(box_pos.row + dy, box_pos.col + dx)
-                if self._is_floor(dst) and dst not in boxes:
-                    pushes.append(Push(box_pos, direction))
-        return pushes
+        return State(player=new_player_pos, boxes=frozenset(boxes))
 
-    def get_valid_pushes(self, state: State) -> list[Push]:
-        return self._valid_pushes_from_reachable(self._reachable_floor(state), state.boxes)
+    def is_deadlock(self, new_box_pos: Position, level: Level) -> bool:
+        """
+        Checks if moving a box to new_box_pos results in a corner deadlock state.
+        This is a foolproof heuristic that ignores freestanding pillars.
+        """
+        # If the box reaches a goal, it is not deadlocked.
+        if new_box_pos in level.goals:
+            return False
 
-    def get_successors(self, state: State, use_macro: bool = False) -> list[tuple[State, tuple[Push, ...]]]:
-        successors: list[tuple[State, tuple[Push, ...]]] = []
-        for push in self.get_valid_pushes(state):
-            nxt = self.normalize_player(self.step(state, push))
-            successors.append((nxt, (push,)))
-        return successors
+        y, x = new_box_pos[0], new_box_pos[1]
+        
+        horz_blocked = False
+        vert_blocked = False
 
-    # ------------------------------------------------------------------
-    # Heuristic support precompute
-    # ------------------------------------------------------------------
+        # Check all 4 directions using moves offsets.
+        for direction, (dy, dx) in self.moves.items():
+            if Position(y + dy, x + dx) in level.walls:
+                if direction in ["UP", "DOWN"]:
+                    vert_blocked = True
+                elif direction in ["LEFT", "RIGHT"]:
+                    horz_blocked = True
 
-    def precompute_point_to_goal(self) -> dict[Position, dict[Position, int]]:
-        point_to_goal: dict[Position, dict[Position, int]] = {
-            Position(r, c): {}
-            for r in range(self.level.height)
-            for c in range(self.level.width)
-            if Position(r, c) not in self.level.walls
-        }
+        # SAFE DEADLOCK CHECK: Corner or 3-side trap.
+        if horz_blocked and vert_blocked:
+            return True
 
-        for goal in self.level.goals:
-            queue = deque([(goal, 0)])
-            seen = {goal}
-            while queue:
-                pos, dist = queue.popleft()
-                if pos in point_to_goal:
-                    point_to_goal[pos][goal] = dist
-
-                # reverse-push graph
-                for dy, dx in self.moves.values():
-                    prev_box = Position(pos.row - dy, pos.col - dx)
-                    prev_player = Position(pos.row - 2 * dy, pos.col - 2 * dx)
-                    if (
-                        prev_box not in seen
-                        and prev_box not in self.level.walls
-                        and prev_player not in self.level.walls
-                    ):
-                        seen.add(prev_box)
-                        queue.append((prev_box, dist + 1))
-        return point_to_goal
-
-    # ------------------------------------------------------------------
-    # Deadlocks
-    # ------------------------------------------------------------------
-
-    def is_deadlock(self, state: State) -> bool:
-        checks = (
-            ("corner", self.has_corner_deadlock),
-            ("dead_square", self.has_dead_square_deadlock),
-            ("2x2", self.has_2x2_deadlock),
-        )
-        for name, fn in checks:
-            if fn(state):
-                self._record_deadlock(name)
-                return True
         return False
 
-    def has_corner_deadlock(self, state: State) -> bool:
-        walls = self.level.walls
-        goals = self.level.goals
-        for box in state.boxes:
-            if box in goals:
-                continue
-            up = Position(box.row - 1, box.col)
-            down = Position(box.row + 1, box.col)
-            left = Position(box.row, box.col - 1)
-            right = Position(box.row, box.col + 1)
-            if (up in walls and left in walls) or (up in walls and right in walls):
-                return True
-            if (down in walls and left in walls) or (down in walls and right in walls):
-                return True
-        return False
 
-    def has_dead_square_deadlock(self, state: State) -> bool:
-        for box in state.boxes:
-            if box not in self.level.goals and not self.point_to_goal.get(box):
-                return True
-        return False
+    def get_valid_pushes(self, state: State, level: Level) -> list[Push]:
+        """
+        Returns a list of valid pushes that can be applied to the given state.
 
-    def has_2x2_deadlock(self, state: State) -> bool:
-        blocked = set(state.boxes)
-        blocked.update(self.level.walls)
+        Args:
+            state (State): The current state of the game.
+            level (Level): The level of the game, containing the static components such as walls and goals.
+
+        Returns:
+            list[Push]: A list of valid pushes that can be applied to the given state.
+        """
+        valid_pushes: list[Push] = []
+        player = state.player
         boxes = state.boxes
-        goals = self.level.goals
-        for r in range(self.level.height - 1):
-            for c in range(self.level.width - 1):
-                p00 = Position(r, c)
-                p10 = Position(r + 1, c)
-                p01 = Position(r, c + 1)
-                p11 = Position(r + 1, c + 1)
-                if p00 in blocked and p10 in blocked and p01 in blocked and p11 in blocked:
-                    block_boxes = [p for p in (p00, p10, p01, p11) if p in boxes]
-                    if not block_boxes:
-                        continue
-                    if all(p not in goals for p in block_boxes):
-                        return True
+
+        visited = set({player})
+        queue = [player]
+
+        while queue:
+            current_pos = queue.pop()
+
+            for direction, (dy, dx) in self.moves.items():
+                next_pos = Position(current_pos[0]+dy, current_pos[1]+dx)
+                if next_pos in level.walls or next_pos in visited:
+                    continue
+                elif next_pos in boxes:
+                    box_next_pos =Position(next_pos[0]+dy, next_pos[1]+dx)
+                    if box_next_pos not in level.walls and box_next_pos not in boxes:
+                        valid_pushes.append(Push(next_pos, direction))
+                else:
+                    visited.add(next_pos)
+                    queue.append(next_pos)
+        
+        return valid_pushes
+    
+    def is_goal_state(self, state: State, level: Level) -> bool:
+        """
+        Checks if the given state is a goal state.
+
+        Args:
+            state (State): The current state of the game.
+            level (Level): The level of the game, containing the static components such as walls and goals.
+        Returns:
+            bool: True if the given state is a goal state, False otherwise.
+        """
+        return all(box in level.goals for box in state.boxes)
+
+class SokobanEnv():
+    def __init__(self, level: Level):
+        self.rules = SokobanRules()
+        self.level = level
+
+    def reset(self) -> State:
+        return self.level.init_state
+    
+    def step(self, state: State, push:Push) -> State:
+        return self.rules.step(state, push)
+    
+    def get_valid_pushes(self, state: State) -> list[Push]:
+        return self.rules.get_valid_pushes(state, self.level)
+    
+    def is_deadlock(self, state: State) -> bool:
+        for box_pos in state.boxes:
+            if self.rules.is_deadlock(box_pos, self.level):
+                return True
         return False
+    
+    def is_goal_state(self, state: State) -> bool:
+        return self.rules.is_goal_state(state, self.level)
+    

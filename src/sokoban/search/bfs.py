@@ -3,15 +3,14 @@ from sokoban.state import Level, Push, State
 from sokoban.env import SokobanEnv
 
 def bfs_solver(level: Level) -> dict:
-    env = SokobanEnv(level, debug_deadlocks=True)
-    start_state = env.normalize_player(level.init_state)
+    env = SokobanEnv(level)
+    start_state = level.init_state
 
     queue = deque([start_state])
-    visited = {start_state}
+    visited = set([start_state])
     parent: dict[State, tuple[State, Push] | None] = {start_state: None}
 
     while queue:
-        if len(visited) > 1000000: break
         state = queue.popleft()
 
         if env.is_goal_state(state):
@@ -21,23 +20,16 @@ def bfs_solver(level: Level) -> dict:
                 prev, action = parent[cur]
                 actions.append(action)
                 cur = prev
-            return {
-                "solved": True,
-                "path": actions[::-1],
-                "explored_states": len(visited),
-                "deadlock_stats": dict(env.deadlock_stats),
-            }
+            print(f"Solved {level.game_id} in {len(actions)} moves")
+            return {"solved": True, "path": actions[::-1]}
 
         for action in env.get_valid_pushes(state):
-            new_state = env.normalize_player(env.step(state, action))
+            new_state = env.step(state, action)
 
-            if new_state not in visited and not env.is_deadlock(new_state):
-                visited.add(new_state)
-                queue.append(new_state)
-                parent[new_state] = (state, action)
-    return {
-        "solved": False,
-        "path": [],
-        "explored_states": len(visited),
-        "deadlock_stats": dict(env.deadlock_stats),
-    }
+            if new_state not in visited:
+                    if not env.get_deadlock_state(new_state):
+                        visited.add(new_state)
+                        queue.append(new_state)
+                        parent[new_state] = (state, action)
+    print(f"Failed to solve {level.game_id}")
+    return {"solved": False, "path": []}
