@@ -1,7 +1,70 @@
 from sokoban.state import Level, Position, Push, State
 from sokoban.env import SokobanEnv
 import heapq
-from scipy.optimize import linear_sum_assignment
+
+def _hungarian_min_cost(cost_matrix: list[list[int]]) -> int:
+    """
+    Computes the minimum assignment cost using the Hungarian algorithm.
+    Supports rectangular matrices where rows <= cols.
+    """
+    if not cost_matrix or not cost_matrix[0]:
+        return 0
+
+    n = len(cost_matrix)
+    m = len(cost_matrix[0])
+    if n > m:
+        # Transpose when there are more rows than columns so rows <= cols.
+        transposed = [[cost_matrix[r][c] for r in range(n)] for c in range(m)]
+        return _hungarian_min_cost(transposed)
+
+    # 1-indexed implementation of Hungarian algorithm for minimization.
+    u = [0] * (n + 1)
+    v = [0] * (m + 1)
+    p = [0] * (m + 1)
+    way = [0] * (m + 1)
+
+    for i in range(1, n + 1):
+        p[0] = i
+        minv = [float("inf")] * (m + 1)
+        used = [False] * (m + 1)
+        j0 = 0
+        while True:
+            used[j0] = True
+            i0 = p[j0]
+            delta = float("inf")
+            j1 = 0
+            for j in range(1, m + 1):
+                if used[j]:
+                    continue
+                cur = cost_matrix[i0 - 1][j - 1] - u[i0] - v[j]
+                if cur < minv[j]:
+                    minv[j] = cur
+                    way[j] = j0
+                if minv[j] < delta:
+                    delta = minv[j]
+                    j1 = j
+            for j in range(m + 1):
+                if used[j]:
+                    u[p[j]] += delta
+                    v[j] -= delta
+                else:
+                    minv[j] -= delta
+            j0 = j1
+            if p[j0] == 0:
+                break
+        while True:
+            j1 = way[j0]
+            p[j0] = p[j1]
+            j0 = j1
+            if j0 == 0:
+                break
+
+    assignment_cost = 0
+    for j in range(1, m + 1):
+        i = p[j]
+        if i != 0:
+            assignment_cost += cost_matrix[i - 1][j - 1]
+    return int(assignment_cost)
 
 def manhattan_heuristic(state: State, env: SokobanEnv) -> int:
     """
@@ -54,16 +117,8 @@ def hungarian_heuristic(state: State, env: SokobanEnv) -> int:
             row.append(env.point_to_goal.get(box, {}).get(goal, unreachable))
         cost_matrix.append(row)
 
-    # Then, the Hungarian algorithm is applied to find the optimal assignment
-    row_ind, col_ind = linear_sum_assignment(cost_matrix)
-    total_cost = sum(cost_matrix[i][j] for i, j in zip(row_ind, col_ind))
-    return total_cost
-
-def custom_hungarian_heuristic(state: State, env: SokobanEnv) -> int:
-    """
-    Here will go our implementation of Hungarian heuristic.
-    """
-    raise NotImplementedError("custom_hungarian_heuristic is not implemented")
+    # Then, the Hungarian algorithm is applied to find the optimal assignment.
+    return _hungarian_min_cost(cost_matrix)
 
 def a_star_solver(level: Level) -> dict:
     """
