@@ -114,7 +114,7 @@ SolverResult a_star_solver(Level *level) {
     set_init(&visited);
 
     State start = copy_state(&level->init_state);
-    nodes[count] = (Node){start, -1, {{0, 0}, ""}, 0, manhattan_heuristic(&start, level), order++};
+    nodes[count] = (Node){start, -1, {{0, 0}, ""}, 0, hungarian_heuristic(&start, level), order++};
     heap_push(&heap, &heap_size, &heap_cap, nodes, count);
     char *start_key = state_key(&start);
     set_add(&visited, start_key);
@@ -125,7 +125,6 @@ SolverResult a_star_solver(Level *level) {
 
         if (is_goal_state(&nodes[cur].state, level)) {
             SolverResult out = build_result(nodes, cur);
-            printf("Solved level %d in %d pushes\n", level->game_id, out.path_len);
             for (int i = 0; i < count; i++) free_state(&nodes[i].state);
             free(nodes);
             free(heap);
@@ -156,7 +155,7 @@ SolverResult a_star_solver(Level *level) {
                 nodes = realloc(nodes, (size_t)node_cap * sizeof(Node));
             }
             int g = nodes[cur].g + 1;
-            nodes[count] = (Node){ns, cur, pushes[i], g, g + manhattan_heuristic(&ns, level), order++};
+            nodes[count] = (Node){ns, cur, pushes[i], g, g + hungarian_heuristic(&ns, level), order++};
             set_add(&visited, key);
             heap_push(&heap, &heap_size, &heap_cap, nodes, count);
             count++;
@@ -164,7 +163,6 @@ SolverResult a_star_solver(Level *level) {
         free(pushes);
     }
 
-    printf("Failed to solve %d\n", level->game_id);
     for (int i = 0; i < count; i++) free_state(&nodes[i].state);
     free(nodes);
     free(heap);

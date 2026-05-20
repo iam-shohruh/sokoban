@@ -12,6 +12,7 @@ bool is_deadlock(Position box, Level *level, State *state);
 bool is_goal_state(State *state, Level *level);
 Push *get_valid_pushes(State *state, Level *level, int *count);
 int manhattan_heuristic(State *state, Level *level);
+int hungarian_heuristic(State *state, Level *level);
 char *state_key(State *state);
 
 #endif

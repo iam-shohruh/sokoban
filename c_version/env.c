@@ -133,6 +133,126 @@ int manhattan_heuristic(State *state, Level *level) {
     return total;
 }
 
+static int hungarian_min_cost(const int *cost, int rows, int cols) {
+    if (rows <= 0 || cols <= 0) return 0;
+
+    if (rows > cols) {
+        int *transposed = malloc((size_t)rows * (size_t)cols * sizeof(int));
+        for (int r = 0; r < rows; r++) {
+            for (int c = 0; c < cols; c++) {
+                transposed[c * rows + r] = cost[r * cols + c];
+            }
+        }
+        int out = hungarian_min_cost(transposed, cols, rows);
+        free(transposed);
+        return out;
+    }
+
+    int *u = calloc((size_t)(rows + 1), sizeof(int));
+    int *v = calloc((size_t)(cols + 1), sizeof(int));
+    int *p = calloc((size_t)(cols + 1), sizeof(int));
+    int *way = calloc((size_t)(cols + 1), sizeof(int));
+    int *minv = malloc((size_t)(cols + 1) * sizeof(int));
+    bool *used = malloc((size_t)(cols + 1) * sizeof(bool));
+
+    for (int i = 1; i <= rows; i++) {
+        p[0] = i;
+        for (int j = 0; j <= cols; j++) {
+            minv[j] = INT_MAX / 4;
+            used[j] = false;
+        }
+
+        int j0 = 0;
+        while (1) {
+            used[j0] = true;
+            int i0 = p[j0];
+            int delta = INT_MAX / 4;
+            int j1 = 0;
+
+            for (int j = 1; j <= cols; j++) {
+                if (used[j]) continue;
+                int cur = cost[(i0 - 1) * cols + (j - 1)] - u[i0] - v[j];
+                if (cur < minv[j]) {
+                    minv[j] = cur;
+                    way[j] = j0;
+                }
+                if (minv[j] < delta) {
+                    delta = minv[j];
+                    j1 = j;
+                }
+            }
+
+            for (int j = 0; j <= cols; j++) {
+                if (used[j]) {
+                    u[p[j]] += delta;
+                    v[j] -= delta;
+                } else {
+                    minv[j] -= delta;
+                }
+            }
+
+            j0 = j1;
+            if (p[j0] == 0) break;
+        }
+
+        while (1) {
+            int j1 = way[j0];
+            p[j0] = p[j1];
+            j0 = j1;
+            if (j0 == 0) break;
+        }
+    }
+
+    int assignment_cost = 0;
+    for (int j = 1; j <= cols; j++) {
+        int i = p[j];
+        if (i != 0) assignment_cost += cost[(i - 1) * cols + (j - 1)];
+    }
+
+    free(u);
+    free(v);
+    free(p);
+    free(way);
+    free(minv);
+    free(used);
+    return assignment_cost;
+}
+
+int hungarian_heuristic(State *state, Level *level) {
+    int num_boxes = state->num_boxes;
+    if (num_boxes == 0) return 0;
+
+    int max_goals = level->width * level->height;
+    Position *goals = malloc((size_t)max_goals * sizeof(Position));
+    int goal_count = 0;
+    for (int r = 0; r < level->height; r++) {
+        for (int c = 0; c < level->width; c++) {
+            Position p = {r, c};
+            if (level->goals[pos_index(level, p)]) goals[goal_count++] = p;
+        }
+    }
+
+    if (goal_count == 0) {
+        free(goals);
+        return 0;
+    }
+
+    int *cost = malloc((size_t)num_boxes * (size_t)goal_count * sizeof(int));
+    for (int i = 0; i < num_boxes; i++) {
+        Position box = state->boxes[i];
+        for (int j = 0; j < goal_count; j++) {
+            Position goal = goals[j];
+            int dist = abs(box.row - goal.row) + abs(box.col - goal.col);
+            cost[i * goal_count + j] = dist;
+        }
+    }
+
+    int out = hungarian_min_cost(cost, num_boxes, goal_count);
+    free(cost);
+    free(goals);
+    return out;
+}
+
 char *state_key(State *state) {
     State tmp = copy_state(state);
     sort_boxes(tmp.boxes, tmp.num_boxes);

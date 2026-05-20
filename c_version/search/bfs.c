@@ -28,7 +28,6 @@ SolverResult bfs_solver(Level *level) {
         int cur = front++;
         if (is_goal_state(&nodes[cur].state, level)) {
             SolverResult out = make_result(nodes, cur);
-            printf("Solved %d in %d moves\n", level->game_id, out.path_len);
             for (int i = 0; i < back; i++) free_state(&nodes[i].state);
             free(nodes); free_keys(&visited); return out;
         }
@@ -47,7 +46,6 @@ SolverResult bfs_solver(Level *level) {
         }
         free(pushes);
     }
-    printf("Failed to solve %d\n", level->game_id);
     for (int i = 0; i < back; i++) free_state(&nodes[i].state);
     free(nodes); free_keys(&visited);
     return (SolverResult){false, NULL, 0};
