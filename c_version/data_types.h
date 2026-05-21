@@ -43,6 +43,13 @@ typedef struct SolverResult {
     bool solved;
     Push *path;
     int path_len;
+    long long nodes_visited;
+    long long deadlocks_detected;
+    long long deadlock_corner_detected;
+    long long deadlock_freeze_detected;
+    long long deadlock_tunnel_detected;
+    long long deadlock_other_detected;
+    double solve_time_sec;
 } SolverResult;
 
 #endif

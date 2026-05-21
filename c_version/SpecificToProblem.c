@@ -290,11 +290,11 @@ State step_state(State *state, Push push) {
     return out;
 }
 
-bool is_deadlock(Position box, Level *level, State *state) {
+DeadlockType detect_deadlock_type(Position box, Level *level, State *state) {
     (void)state;
 
     if (in_bounds(level, box) && level->goals[pos_index(level, box)]) {
-        return false;
+        return DEADLOCK_NONE;
     }
 
     bool up = is_wall(level, (Position){box.row - 1, box.col});
@@ -303,10 +303,14 @@ bool is_deadlock(Position box, Level *level, State *state) {
     bool right = is_wall(level, (Position){box.row, box.col + 1});
 
     if ((up || down) && (left || right)) {
-        return true;
+        return DEADLOCK_CORNER;
     }
 
-    return false;
+    return DEADLOCK_NONE;
+}
+
+bool is_deadlock(Position box, Level *level, State *state) {
+    return detect_deadlock_type(box, level, state) != DEADLOCK_NONE;
 }
 
 bool is_goal_state(State *state, Level *level) {
@@ -386,6 +390,107 @@ int manhattan_heuristic(State *state, Level *level) {
     }
 
     free(taken);
+    return total;
+}
+
+int hungarian_heuristic(State *state, Level *level) {
+    int n = state->num_boxes;
+    if (n <= 0) return 0;
+
+    int goal_count = 0;
+    for (int r = 0; r < level->height; r++) {
+        for (int c = 0; c < level->width; c++) {
+            if (level->goals[r * level->width + c]) goal_count++;
+        }
+    }
+
+    if (goal_count < n) {
+        return manhattan_heuristic(state, level);
+    }
+
+    Position *goals = malloc((size_t)goal_count * sizeof(Position));
+    int gi = 0;
+    for (int r = 0; r < level->height; r++) {
+        for (int c = 0; c < level->width; c++) {
+            if (level->goals[r * level->width + c]) {
+                goals[gi++] = (Position){r, c};
+            }
+        }
+    }
+
+    int *u = calloc((size_t)(n + 1), sizeof(int));
+    int *v = calloc((size_t)(goal_count + 1), sizeof(int));
+    int *p = calloc((size_t)(goal_count + 1), sizeof(int));
+    int *way = calloc((size_t)(goal_count + 1), sizeof(int));
+    int *minv = malloc((size_t)(goal_count + 1) * sizeof(int));
+    bool *used = calloc((size_t)(goal_count + 1), sizeof(bool));
+
+    for (int i = 1; i <= n; i++) {
+        p[0] = i;
+        for (int j = 1; j <= goal_count; j++) {
+            minv[j] = INT_MAX;
+            used[j] = false;
+        }
+        used[0] = true;
+
+        int j0 = 0;
+        do {
+            used[j0] = true;
+            int i0 = p[j0];
+            int delta = INT_MAX;
+            int j1 = 0;
+
+            for (int j = 1; j <= goal_count; j++) {
+                if (used[j]) continue;
+
+                int cur = abs(state->boxes[i0 - 1].row - goals[j - 1].row) +
+                          abs(state->boxes[i0 - 1].col - goals[j - 1].col) -
+                          u[i0] - v[j];
+                if (cur < minv[j]) {
+                    minv[j] = cur;
+                    way[j] = j0;
+                }
+                if (minv[j] < delta) {
+                    delta = minv[j];
+                    j1 = j;
+                }
+            }
+
+            for (int j = 0; j <= goal_count; j++) {
+                if (used[j]) {
+                    u[p[j]] += delta;
+                    v[j] -= delta;
+                } else {
+                    minv[j] -= delta;
+                }
+            }
+
+            j0 = j1;
+        } while (p[j0] != 0);
+
+        do {
+            int j1 = way[j0];
+            p[j0] = p[j1];
+            j0 = j1;
+        } while (j0 != 0);
+    }
+
+    int total = 0;
+    for (int j = 1; j <= goal_count; j++) {
+        if (p[j] != 0) {
+            total += abs(state->boxes[p[j] - 1].row - goals[j - 1].row) +
+                     abs(state->boxes[p[j] - 1].col - goals[j - 1].col);
+        }
+    }
+
+    free(goals);
+    free(u);
+    free(v);
+    free(p);
+    free(way);
+    free(minv);
+    free(used);
+
     return total;
 }
 

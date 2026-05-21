@@ -5,10 +5,51 @@
 #include <time.h>
 
 static SolverResult solve_level(Level *level, const char *solver) {
+    clock_t start = clock();
+    SolverResult result;
+
     if (strcmp(solver, "bfs") == 0) {
-        return First_InsertFrontier_Search_TREE(level);
+        result = First_InsertFrontier_Search_TREE(level);
+    } else {
+        result = Insert_Priority_Queue_GENERALIZED_A_Star(level);
     }
-    return Insert_Priority_Queue_GENERALIZED_A_Star(level);
+
+    result.solve_time_sec = (double)(clock() - start) / CLOCKS_PER_SEC;
+    return result;
+}
+
+static void print_single_human(const char *dataset, const char *solver, int count, Level *level, SolverResult *result) {
+    printf("\nDataset: %s (%d levels)\n", dataset, count);
+    printf("Solver: %s\n", strcmp(solver, "bfs") == 0 ? "BFS" : "A*");
+    printf("Level %d: %s\n", level->game_id, result->solved ? "Solved" : "Failed");
+    printf("Time to solve: %.4fs\n", result->solve_time_sec);
+    printf("Path length: %d pushes\n", result->path_len);
+    printf("Nodes visited: %lld\n", result->nodes_visited);
+    printf("Deadlocks detected: %lld\n", result->deadlocks_detected);
+    printf("Deadlock by type: corner=%lld freeze=%lld tunnel=%lld other=%lld\n",
+           result->deadlock_corner_detected,
+           result->deadlock_freeze_detected,
+           result->deadlock_tunnel_detected,
+           result->deadlock_other_detected);
+}
+
+static void print_csv_header(void) {
+    printf("solver,level_id,solved,path_len,solve_time_sec,nodes_visited,deadlocks_detected,deadlock_corner_detected,deadlock_freeze_detected,deadlock_tunnel_detected,deadlock_other_detected\n");
+}
+
+static void print_csv_row(const char *solver, int level_id, SolverResult *result) {
+    printf("%s,%d,%d,%d,%.6f,%lld,%lld,%lld,%lld,%lld,%lld\n",
+           solver,
+           level_id,
+           result->solved ? 1 : 0,
+           result->path_len,
+           result->solve_time_sec,
+           result->nodes_visited,
+           result->deadlocks_detected,
+           result->deadlock_corner_detected,
+           result->deadlock_freeze_detected,
+           result->deadlock_tunnel_detected,
+           result->deadlock_other_detected);
 }
 
 void evaluate_single(const char *dataset, const char *solver, int level_number, bool animate) {
@@ -24,20 +65,13 @@ void evaluate_single(const char *dataset, const char *solver, int level_number, 
     }
 
     Level *level = &levels[level_number - 1];
-
-    clock_t start = clock();
     SolverResult result = solve_level(level, solver);
-    double seconds = (double)(clock() - start) / CLOCKS_PER_SEC;
 
     if (result.solved && animate) {
         animate_solution(level, &result, 500);
     }
 
-    printf("\nDataset: %s (%d levels)\n", dataset, count);
-    printf("Solver: %s\n", strcmp(solver, "bfs") == 0 ? "BFS" : "A*");
-    printf("Level %d: %s\n", level->game_id, result.solved ? "Solved" : "Failed");
-    printf("Time to solve: %.4fs\n", seconds);
-    printf("Path length: %d pushes\n", result.path_len);
+    print_single_human(dataset, solver, count, level, &result);
 
     free(result.path);
     for (int i = 0; i < count; i++) free_level(&levels[i]);
@@ -52,15 +86,35 @@ void evaluate(const char *dataset, const char *solver) {
     printf("Evaluating %s with %s (%d levels).\n", dataset, strcmp(solver, "bfs") == 0 ? "BFS" : "A*", count);
 
     for (int i = 0; i < count; i++) {
-        clock_t start = clock();
         SolverResult result = solve_level(&levels[i], solver);
-        double seconds = (double)(clock() - start) / CLOCKS_PER_SEC;
 
-        printf("Level %d: %s | %.4fs | %d pushes\n",
+        printf("Level %d: %s | %.4fs | %d pushes | visited=%lld deadlocks=%lld (corner=%lld freeze=%lld tunnel=%lld other=%lld)\n",
                levels[i].game_id,
                result.solved ? "Solved" : "Failed",
-               seconds,
-               result.path_len);
+               result.solve_time_sec,
+               result.path_len,
+               result.nodes_visited,
+               result.deadlocks_detected,
+               result.deadlock_corner_detected,
+               result.deadlock_freeze_detected,
+               result.deadlock_tunnel_detected,
+               result.deadlock_other_detected);
+        free(result.path);
+    }
+
+    for (int i = 0; i < count; i++) free_level(&levels[i]);
+    free(levels);
+}
+
+void evaluate_csv(const char *dataset, const char *solver) {
+    int count = 0;
+    Level *levels = load_levels(dataset_path(dataset), &count);
+    if (!levels) return;
+
+    print_csv_header();
+    for (int i = 0; i < count; i++) {
+        SolverResult result = solve_level(&levels[i], solver);
+        print_csv_row(solver, levels[i].game_id, &result);
         free(result.path);
     }
 
@@ -108,6 +162,7 @@ int main(int argc, char **argv) {
     int level_number = 0;
     bool animate = true;
     bool batch = false;
+    bool csv = false;
 
     for (int i = 1; i < argc; i++) {
         const char *value = NULL;
@@ -116,6 +171,12 @@ int main(int argc, char **argv) {
         else if ((value = arg_value(argv[i], "--level=")) != NULL) level_number = atoi(value);
         else if (strcmp(argv[i], "--no-animate") == 0) animate = false;
         else if (strcmp(argv[i], "--batch") == 0) batch = true;
+        else if (strcmp(argv[i], "--csv") == 0) csv = true;
+    }
+
+    if (dataset && solver && batch && csv) {
+        evaluate_csv(dataset, solver);
+        return 0;
     }
 
     if (dataset && solver && batch) {

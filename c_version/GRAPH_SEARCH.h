@@ -4,6 +4,14 @@
 #include "data_types.h"
 #include <stdbool.h>
 
+typedef enum DeadlockType {
+    DEADLOCK_NONE = 0,
+    DEADLOCK_CORNER = 1,
+    DEADLOCK_FREEZE = 2,
+    DEADLOCK_TUNNEL = 3,
+    DEADLOCK_OTHER = 4
+} DeadlockType;
+
 Level *load_levels(const char *filepath, int *out_count);
 void free_level(Level *level);
 const char *dataset_path(const char *dataset);
@@ -16,9 +24,11 @@ State copy_state(State *state);
 void free_state(State *state);
 State step_state(State *state, Push push);
 bool is_deadlock(Position box, Level *level, State *state);
+DeadlockType detect_deadlock_type(Position box, Level *level, State *state);
 bool is_goal_state(State *state, Level *level);
 Push *get_valid_pushes(State *state, Level *level, int *count);
 int manhattan_heuristic(State *state, Level *level);
+int hungarian_heuristic(State *state, Level *level);
 char *state_key(State *state);
 void animate_solution(Level *level, SolverResult *result, int delay_ms);
 
@@ -29,5 +39,6 @@ SolverResult a_star_solver(Level *level);
 
 void evaluate_single(const char *dataset, const char *solver, int level_number, bool animate);
 void evaluate(const char *dataset, const char *solver);
+void evaluate_csv(const char *dataset, const char *solver);
 
 #endif

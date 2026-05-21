@@ -5,7 +5,6 @@
 
 #define HASH_TABLE_BASED_SIZE 262144
 #define HASH_TABLE_INCREASING_RATE 2
-#define MAX_KEY_SIZE 4096
 
 typedef struct HashEntry {
     char *key;

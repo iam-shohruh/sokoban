@@ -1,0 +1,7 @@
+solver,level_id,solved,path_len,solve_time_sec,nodes_visited,deadlocks_detected
+a_star,44,1,1,0.0005,2,0
+a_star,1,1,8,0.0004,25,26
+a_star,8,1,32,0.0008,137,57
+a_star,60,1,44,0.0379,7931,7895
+a_star,120,1,64,0.0566,12953,11102
+a_star,150,1,43,3.8580,331841,347912
